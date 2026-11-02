@@ -1,0 +1,39 @@
+name: build-iso
+# Builds the offline USB installer and test-installs it in a VM with no network.
+on:
+  workflow_dispatch:
+    inputs:
+      parent_password:
+        description: "First-login password for the grown-up account (forced change at first login)"
+        default: "changeme"
+  push:
+    branches: [main]
+    paths: ["iso/**", "os/**", "apps/**", "machines/**", ".github/workflows/build-iso.yml"]
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xorriso debootstrap apt-utils qemu-system-x86 qemu-utils ovmf
+          sudo chmod 666 /dev/kvm || true
+      - name: build ISO
+        env:
+          KIDOS_PARENT_PASSWORD: ${{ inputs.parent_password || 'changeme' }}
+          KIDOS_WIFI_SSID: ${{ secrets.KIDOS_WIFI_SSID }}
+          KIDOS_WIFI_PSK: ${{ secrets.KIDOS_WIFI_PSK }}
+        run: bash iso/build-iso.sh
+      - name: test install (BIOS, no network)
+        run: sudo env INSTALL_TIMEOUT=3000 bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso bios
+      - name: test install (UEFI, no network)
+        run: sudo env INSTALL_TIMEOUT=3000 bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso uefi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kidos-mp17jtkl-iso
+          path: build/kidos-mp17jtkl.iso
+          retention-days: 14
+          compression-level: 0
