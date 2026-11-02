@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-time setup. Run as root on a fresh, minimal Debian 13 install:
+# Online one-time setup for an ALREADY INSTALLED minimal Debian 13.
+# (The offline USB installer does all of this for you; see docs/INSTALL-USB.md.)
 #
 #   wget -qO- https://raw.githubusercontent.com/dx7fnpy44g/ArthursLaptop/main/install.sh | sudo bash
 #
@@ -8,7 +9,6 @@ set -euo pipefail
 
 REPO_URL="${KIDOS_REPO:-https://github.com/dx7fnpy44g/ArthursLaptop.git}"
 BRANCH="${KIDOS_BRANCH:-main}"
-HOST="${KIDOS_HOSTNAME:-mp17jtkl}"
 DEST=/opt/kidos
 
 [ "$(id -u)" -eq 0 ] || { echo "Run as root (use sudo)." >&2; exit 1; }
@@ -35,26 +35,8 @@ if [ ! -d "$DEST/.git" ]; then
   git "${gitargs[@]}" clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$DEST"
 fi
 
-if [ ! -f /etc/kidos/update.conf ]; then
-  cat >/etc/kidos/update.conf <<EOF
-# Read by kidos-update (a shell file). See docs/PARENT.md.
-REPO_URL="$REPO_URL"
-BRANCH="$BRANCH"
-# Fetch SSH public keys from https://github.com/<user>.keys so you can log in remotely.
-SSH_KEYS_GITHUB_USER="dx7fnpy44g"
-# Set to 1 and fill /etc/kidos/allowed_signers to only accept signed commits.
-REQUIRE_SIGNED=0
-EOF
-fi
-
-# Hostname = the laptop's serial, which also selects machines/<serial>/
-hostnamectl set-hostname "$HOST" 2>/dev/null || echo "$HOST" >/etc/hostname
-sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t$HOST/" /etc/hosts
-grep -q '^127\.0\.1\.1' /etc/hosts || printf '127.0.1.1\t%s\n' "$HOST" >>/etc/hosts
-
-"$DEST/os/apply.sh"
-git -C "$DEST" rev-parse HEAD >/var/lib/kidos/version
-
+export KIDOS_REPO="$REPO_URL" KIDOS_BRANCH="$BRANCH"
+"$DEST/os/setup.sh"
 "$DEST/os/bin/kidos-migrate-network" || true
 
 echo

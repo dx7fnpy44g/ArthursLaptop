@@ -5,7 +5,7 @@
 set -euo pipefail
 
 IFACES="${KIDOS_INTERFACES:-/etc/network/interfaces}"
-NMDIR="${KIDOS_NM_DIR:-/etc/NetworkManager/system-connections}"
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
 [ -f "$IFACES" ] || exit 0
 ssid=$(sed -n 's/^[[:space:]]*wpa-ssid[[:space:]]\+//p' "$IFACES" | head -n1)
@@ -15,20 +15,7 @@ if [ -z "$ssid" ]; then
   echo "No Wi-Fi in $IFACES; nothing to migrate."
   exit 0
 fi
-case "$ssid$psk" in
-  *';'*|*\\*|*$'\r'*) echo "Wi-Fi name/password has special characters; leaving network as is. Use nmtui."; exit 0 ;;
-esac
-
-mkdir -p "$NMDIR"
-f="$NMDIR/kidos-wifi.nmconnection"
-umask 077
-{
-  printf '[connection]\nid=kidos-wifi\ntype=wifi\nautoconnect=true\n\n'
-  printf '[wifi]\nmode=infrastructure\nssid=%s\n\n' "$ssid"
-  if [ -n "$psk" ]; then printf '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n\n' "$psk"; fi
-  printf '[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n'
-} >"$f"
-chmod 600 "$f"
+"$HERE/kidos-wifi-add" "$ssid" "$psk" || { echo "Leaving network as is."; exit 0; }
 
 # Keep only the loopback stanza in ifupdown so NetworkManager owns the rest.
 cp -n "$IFACES" "$IFACES.kidos-backup" 2>/dev/null || true

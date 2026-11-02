@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Make this machine match the repo. Idempotent: run it as often as you like.
-# Run by install.sh the first time and by kidos-update after every pull.
+# Run by setup.sh the first time and by kidos-update after every pull.
+#
+# Also works inside the Debian installer's chroot (no systemd running) and fully
+# offline: set KIDOS_OFFLINE=/path/to/flat-apt-repo and packages come from there.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,6 +11,8 @@ export DEBIAN_FRONTEND=noninteractive
 log() { echo "[apply] $*"; }
 
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
+
+LIVE=0; [ -d /run/systemd/system ] && LIVE=1   # 0 inside the installer chroot
 
 # --- which machine overlay applies? (hostname or BIOS serial, case-insensitive)
 serial="$(cat /sys/class/dmi/id/product_serial 2>/dev/null || true)"
@@ -18,21 +23,45 @@ for cand in "$(hostname)" "$serial"; do
 done
 log "machine overlay: ${overlay:-none}"
 
-# --- apt: make sure firmware components are enabled
+# --- apt sources
+# A cdrom/offline install leaves no usable sources; make sure online updates work later.
+if ! grep -rqsE '^(deb |Types:)' /etc/apt/sources.list /etc/apt/sources.list.d/; then
+  cat >/etc/apt/sources.list.d/debian.sources <<'EOF'
+Types: deb
+URIs: http://deb.debian.org/debian
+Suites: trixie trixie-updates
+Components: main non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://deb.debian.org/debian-security
+Suites: trixie-security
+Components: main non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+fi
 if [ -f /etc/apt/sources.list.d/debian.sources ]; then
   sed -i -E '/^Components:/{/non-free-firmware/! s/$/ non-free-firmware/}' /etc/apt/sources.list.d/debian.sources
 elif [ -f /etc/apt/sources.list ]; then
   sed -i -E '/^deb .*debian\.org.* main/{/non-free-firmware/! s/$/ non-free-firmware/}' /etc/apt/sources.list
 fi
-apt-get update -qq
+
+APT=(apt-get)
+if [ -n "${KIDOS_OFFLINE:-}" ]; then
+  log "offline mode: packages from $KIDOS_OFFLINE"
+  echo "deb [trusted=yes] file:$KIDOS_OFFLINE ./" >/run/kidos-offline.list
+  APT=(apt-get -o Dir::Etc::sourcelist=/run/kidos-offline.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0)
+fi
+"${APT[@]}" update -qq
 
 pkgs() { grep -hvE '^\s*(#|$)' "$@" 2>/dev/null || true; }
 
 # shellcheck disable=SC2046
-apt-get install -y --no-install-recommends $(pkgs "$ROOT/os/packages.txt" ${overlay:+"$overlay/packages.txt"})
+"${APT[@]}" install -y --no-install-recommends $(pkgs "$ROOT/os/packages.txt" ${overlay:+"$overlay/packages.txt"})
 for p in $(pkgs "$ROOT/os/packages-optional.txt"); do
-  apt-get install -y --no-install-recommends "$p" || log "WARNING: optional package $p unavailable"
+  "${APT[@]}" install -y --no-install-recommends "$p" || log "WARNING: optional package $p unavailable"
 done
+rm -f /run/kidos-offline.list
 
 # --- users
 id kid >/dev/null 2>&1 || useradd -m -s /bin/bash -G audio,video,render kid
@@ -49,21 +78,23 @@ for f in "$ROOT"/os/bin/kidos-*; do ln -sf "$f" "/usr/local/bin/$(basename "$f")
 ln -sf "$ROOT/os/bin/kidos-getty" /usr/local/sbin/kidos-getty
 chmod 755 "$ROOT"/os/bin/*
 
-# --- Wi-Fi/Ethernet via NetworkManager
-systemctl enable NetworkManager NetworkManager-wait-online >/dev/null 2>&1 || true
-
 # --- services
-systemd-tmpfiles --create /etc/tmpfiles.d/kidos.conf
-systemctl daemon-reload
+systemctl enable NetworkManager NetworkManager-wait-online >/dev/null 2>&1 || true
 systemctl mask ctrl-alt-del.target >/dev/null 2>&1 || true
 systemctl enable kidos-web.service kidos-update.timer unattended-upgrades >/dev/null 2>&1
-systemctl restart kidos-web.service
-systemctl start kidos-update.timer || true
+if [ "$LIVE" = 1 ]; then
+  systemd-tmpfiles --create /etc/tmpfiles.d/kidos.conf
+  systemctl daemon-reload
+  systemctl restart kidos-web.service
+  systemctl start kidos-update.timer || true
+else
+  mkdir -p /run/kidos   # tmpfiles recreates it on every boot
+fi
 
-# --- remote help: SSH only with keys, and only if the GitHub user has any
+# --- remote help: SSH only with keys, and only if the GitHub user has any (needs internet)
 # shellcheck disable=SC1091
 [ -f /etc/kidos/update.conf ] && . /etc/kidos/update.conf
-if [ -n "${SSH_KEYS_GITHUB_USER:-}" ]; then
+if [ "$LIVE" = 1 ] && [ -n "${SSH_KEYS_GITHUB_USER:-}" ]; then
   if keys="$(curl -fsS --max-time 20 "https://github.com/${SSH_KEYS_GITHUB_USER}.keys" 2>/dev/null)" && [ -n "$keys" ]; then
     printf '%s\n' "$keys" >/etc/ssh/kidos_authorized_keys
     chmod 644 /etc/ssh/kidos_authorized_keys

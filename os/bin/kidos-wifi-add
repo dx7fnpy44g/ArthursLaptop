@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# kidos-wifi-add <ssid> <passphrase>   (passphrase may be empty for an open network)
+# Writes a NetworkManager connection file. Works offline and inside the installer.
+set -euo pipefail
+NMDIR="${KIDOS_NM_DIR:-/etc/NetworkManager/system-connections}"
+ssid="${1:?ssid required}"; psk="${2:-}"
+
+case "$ssid$psk" in
+  *';'*|*\\*|*$'\r'*|*$'\n'*) echo "Wi-Fi name/password has special characters; not adding. Use nmtui." >&2; exit 2 ;;
+esac
+
+mkdir -p "$NMDIR"
+f="$NMDIR/kidos-wifi.nmconnection"
+umask 077
+{
+  printf '[connection]\nid=kidos-wifi\ntype=wifi\nautoconnect=true\n\n'
+  printf '[wifi]\nmode=infrastructure\nssid=%s\n\n' "$ssid"
+  if [ -n "$psk" ]; then printf '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n\n' "$psk"; fi
+  printf '[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n'
+} >"$f"
+chmod 600 "$f"
