@@ -8,6 +8,9 @@ T=/target
 
 mkdir -p "$T/opt" "$T/media/kidos-offline"
 cp -a "$K/src" "$T/opt/kidos"
+# The copy keeps the uid of whoever built the ISO; git (run as root by the updater)
+# refuses repositories owned by anyone else.
+chown -R 0:0 "$T/opt/kidos"
 [ -f "$K/wifi.env" ] && cp "$K/wifi.env" "$T/tmp/kidos-wifi.env"
 
 mount --bind "$K/offline" "$T/media/kidos-offline"
