@@ -69,7 +69,9 @@ for p in /dev/nbd0p*; do
 done
 [ -n "$root" ] || fail "no installed root with /opt/kidos found"
 M="$W/mnt"
-chk() { [ -e "$M/$1" ] || fail "missing $1"; }
+# Symlinks point at absolute paths inside the VM (/opt/kidos/...), which dangle when viewed
+# from the host, so a link counts as present even if its target can't be followed here.
+chk() { [ -e "$M/$1" ] || [ -L "$M/$1" ] || fail "missing $1"; }
 installed() { grep -q "^Package: $1\$" "$M/var/lib/dpkg/status" || fail "package not installed: $1"; }
 
 chk opt/kidos/.git
