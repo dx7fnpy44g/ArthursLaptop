@@ -107,12 +107,13 @@ trap 'kill "$BPID" 2>/dev/null || true' EXIT
 SHOT="python3 $(dirname "$0")/qemu-shot.py $SOCK"
 sleep 90
 before="$($SHOT colors "$SHOTS/$MODE-boot-1.png")"; echo "screen after boot:    $before"
-for k in a s d f j k; do $SHOT key "$k"; sleep 0.4; done
-sleep 3
-after="$($SHOT colors "$SHOTS/$MODE-boot-2.png")";  echo "screen after typing:  $after"
+after="$($SHOT colors "$SHOTS/$MODE-boot-2.png")";  echo "screen a bit later:   $after"
+# Press a key and compare the screen at once: the app must draw a big shape for it.
+react="$($SHOT react "$SHOTS/$MODE-before-key.png" "$SHOTS/$MODE-after-key.png")"; echo "key press result:     $react"
 kill "$BPID" 2>/dev/null || true; trap - EXIT
 
 colors="${after#colors=}"; colors="${colors%% *}"
 [ "$colors" -gt 200 ] || fail "screen is blank/flat (only $colors colours): the kiosk did not draw the app"
-[ "${before##*md5=}" != "${after##*md5=}" ] || fail "screen did not change when keys were pressed"
-echo "boot test passed ($MODE): the app is on screen and reacts to the keyboard"
+pct="${react#changed=}"; pct="${pct%\%}"
+awk -v p="$pct" 'BEGIN{exit !(p >= 1.0)}' || fail "pressing a key changed only ${pct}% of the screen: the app did not react"
+echo "boot test passed ($MODE): the app is on screen and a key press draws a shape"
