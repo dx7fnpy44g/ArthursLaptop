@@ -22,6 +22,10 @@ Laptop: Lenovo ideapad 110-15ISK, serial **MP17JTKL** (64-bit Intel, UEFI/legacy
 
 ## One-time install (≈ 20 minutes, no repeat flashing)
 
+**Easiest: the offline USB stick** (works with no Wi-Fi at all). See
+[INSTALL-USB.md](INSTALL-USB.md). The steps below are the alternative: install stock Debian
+yourself, then run one command (needs internet).
+
 1. On another computer download the Debian 13 **netinst** ISO for amd64
    (https://www.debian.org/distrib/netinst — it includes Wi-Fi firmware) and write it to
    a USB stick (balenaEtcher or `dd`).

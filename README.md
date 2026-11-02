@@ -9,4 +9,5 @@ this repo. Install Debian once, then the laptop keeps itself up to date from Git
 * `install.sh` – one-time bootstrap
 * `tests/` – updater/rollback, Wi-Fi migration and browser smoke tests (run in CI)
 
-Start with **[docs/PARENT.md](docs/PARENT.md)**.
+To install: **[docs/INSTALL-USB.md](docs/INSTALL-USB.md)** (offline USB stick built by GitHub Actions).
+Everyday use and troubleshooting: **[docs/PARENT.md](docs/PARENT.md)**.
