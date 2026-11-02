@@ -4,6 +4,7 @@ chromium
 pipewire-audio
 wireplumber
 network-manager
+systemd-timesyncd
 unattended-upgrades
 openssh-server
 sudo

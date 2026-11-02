@@ -51,7 +51,10 @@ APT=(apt-get)
 if [ -n "${KIDOS_OFFLINE:-}" ]; then
   log "offline mode: packages from $KIDOS_OFFLINE"
   echo "deb [trusted=yes] file:$KIDOS_OFFLINE ./" >/run/kidos-offline.list
-  APT=(apt-get -o Dir::Etc::sourcelist=/run/kidos-offline.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0)
+  # The laptop's clock is often wrong with no network (e.g. still on Windows' local time), and apt
+  # refuses a package list stamped "in the future" -- so don't check dates for this local repo.
+  APT=(apt-get -o Dir::Etc::sourcelist=/run/kidos-offline.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
+       -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false)
 fi
 "${APT[@]}" update -qq
 

@@ -43,8 +43,8 @@ echo "closure: $(wc -l <"$C/repo/.names") packages"
 chroot "$C" sh -c 'cd /repo && xargs -a .names -n 50 apt-get download -q' 2>&1 | tail -n 3
 rm -f "$C/repo/.names"
 
-chroot "$C" sh -c 'cd /repo && apt-ftparchive packages . >Packages && gzip -kf Packages && apt-ftparchive release . >Release'
+chroot "$C" sh -c 'cd /repo && apt-ftparchive packages . >Packages && gzip -kf Packages && apt-ftparchive release . | grep -v "^Date:" >Release'   # no Date: a laptop with a wrong clock can still use it
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 cp "$C"/repo/* "$OUT"/
-echo "repo: $(ls "$OUT"/*.deb | wc -l) debs, $(du -sh "$OUT" | cut -f1)"
+echo "repo: $(find "$OUT" -name '*.deb' | wc -l) debs, $(du -sh "$OUT" | cut -f1)"

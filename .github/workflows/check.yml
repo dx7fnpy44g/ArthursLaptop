@@ -15,7 +15,7 @@ jobs:
           sudo apt-get install -y shellcheck >/dev/null
           shellcheck -x install.sh os/apply.sh \
             os/bin/kidos-{update,session,kiosk-login,getty,resume,status,migrate-network} \
-            tests/*.sh os/rootfs/etc/profile.d/kidos-kiosk.sh
+            tests/*.sh os/setup.sh os/install-offline.sh iso/*.sh os/rootfs/etc/profile.d/kidos-kiosk.sh
       - name: syntax
         run: |
           node --check apps/play.js
@@ -25,6 +25,7 @@ jobs:
         run: |
           bash tests/test-update.sh
           bash tests/test-migrate.sh
+          sudo bash tests/test-offline-clock.sh
       - name: browser smoke test
         run: |
           npm install --no-save playwright@1.49.1

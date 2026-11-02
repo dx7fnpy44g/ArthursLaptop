@@ -24,7 +24,10 @@ echo "== installing ($MODE, ${accel[*]}), timeout ${TIMEOUT}s"
 SOCK="$W/mon.sock"; SHOTS="${SHOTS:-$W/shots}"; mkdir -p "$SHOTS"
 shot() { python3 "$(dirname "$0")/qemu-shot.py" "$SOCK" shot "$SHOTS/$MODE-$1.png" 2>/dev/null || true; }
 # The ISO is attached as a USB stick, like on real hardware. No NIC at all.
-qemu-system-x86_64 "${accel[@]}" "${fw[@]}" -m 3072 -smp 4 \
+# Start the guest's clock hours BEHIND real time, like a laptop whose clock was left on
+# Windows local time: apt must not reject the offline repo as "not valid yet".
+RTC_BASE="$(date -u -d "${CLOCK_SKEW:--4 hours}" +%Y-%m-%dT%H:%M:%S)"
+qemu-system-x86_64 "${accel[@]}" "${fw[@]}" -rtc "base=$RTC_BASE" -m 3072 -smp 4 \
   -display none -nic none -no-reboot \
   -drive file="$DISK",if=none,id=hd,format=qcow2 -device ich9-ahci,id=ahci -device ide-hd,drive=hd,bus=ahci.0 \
   -drive file="$ISO",if=none,id=usb,format=raw,readonly=on -device qemu-xhci -device usb-storage,drive=usb,bootindex=0 \
