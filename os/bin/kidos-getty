@@ -1,0 +1,7 @@
+#!/bin/sh
+# ExecStart for getty@tty1: auto-login the kid unless parent mode was requested.
+term="${1:-linux}"
+if [ -e /run/kidos/parent-mode ]; then
+  exec /sbin/agetty -o '-p -- \\u' --noclear - "$term"
+fi
+exec /sbin/agetty --autologin kid --noclear - "$term"

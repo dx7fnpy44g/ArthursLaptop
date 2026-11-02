@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull the latest Kid OS from GitHub and apply it
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/kidos/os/bin/kidos-update
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min

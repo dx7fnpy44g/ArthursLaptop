@@ -1,0 +1,17 @@
+# Required packages (a failure here makes an update fail and roll back).
+cage
+chromium
+pipewire-audio
+wireplumber
+network-manager
+unattended-upgrades
+openssh-server
+sudo
+git
+rsync
+curl
+ca-certificates
+python3
+fonts-noto-color-emoji
+fonts-dejavu-core
+alsa-utils

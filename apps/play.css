@@ -1,0 +1,26 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b1020;
+  cursor: none;            /* we draw our own soft glow cursor */
+  user-select: none;
+  -webkit-user-select: none;
+}
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+}
+#note {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font: 600 4vmin/1.3 "DejaVu Sans", sans-serif;
+  text-align: center;
+  background: rgba(8, 10, 24, 0.85);
+}
+#note[hidden] { display: none; }

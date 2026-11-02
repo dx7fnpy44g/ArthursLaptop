@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Pull the latest OS definition from GitHub and apply it. Roll back if it fails.
+#
+# Safe to run any time: offline => quietly does nothing. A commit that fails to
+# apply is remembered (bad-commit) and skipped until a newer commit is pushed.
+set -euo pipefail
+
+ROOT="${KIDOS_ROOT:-/opt/kidos}"
+STATE="${KIDOS_STATE:-/var/lib/kidos}"
+CONF="${KIDOS_CONF:-/etc/kidos/update.conf}"
+APPLY="${KIDOS_APPLY:-$ROOT/os/apply.sh}"
+
+REPO_URL="https://github.com/dx7fnpy44g/ArthursLaptop.git"
+BRANCH="main"
+REQUIRE_SIGNED=0
+ALLOWED_SIGNERS="/etc/kidos/allowed_signers"
+TOKEN_FILE="/etc/kidos/github_token"
+
+log() { echo "[kidos-update] $*"; }
+status() { # status "message"
+  printf 'Last check:   %s\nLast result:  %s\n' "$(date -Is)" "$1" >"$STATE/status"
+}
+
+main() {
+  # shellcheck disable=SC1090
+  [ -f "$CONF" ] && . "$CONF"
+  mkdir -p "$STATE"
+  exec 9>"$STATE/update.lock"
+  flock -n 9 || { log "another update is running"; exit 0; }
+
+  local gitargs=(-C "$ROOT")
+  if [ -s "$TOKEN_FILE" ]; then
+    local b64; b64=$(printf 'x-access-token:%s' "$(tr -d '\n' <"$TOKEN_FILE")" | base64 -w0)
+    gitargs+=(-c "http.extraheader=AUTHORIZATION: basic $b64")
+  fi
+
+  local old new
+  old=$(git -C "$ROOT" rev-parse HEAD)
+  if ! git "${gitargs[@]}" fetch --quiet --depth 1 "$REPO_URL" "$BRANCH" 2>/dev/null; then
+    log "could not reach GitHub (offline?); will try again later"
+    status "offline, still on ${old:0:12}"
+    exit 0
+  fi
+  new=$(git -C "$ROOT" rev-parse FETCH_HEAD)
+
+  if [ "$new" = "$old" ]; then
+    status "up to date (${old:0:12})"
+    exit 0
+  fi
+  if [ -f "$STATE/bad-commit" ] && [ "$new" = "$(cat "$STATE/bad-commit")" ]; then
+    log "${new:0:12} failed before; waiting for a newer commit"
+    status "skipping known-bad ${new:0:12}, still on ${old:0:12}"
+    exit 0
+  fi
+
+  if [ "$REQUIRE_SIGNED" = 1 ]; then
+    if ! git -C "$ROOT" -c gpg.format=ssh -c "gpg.ssh.allowedSignersFile=$ALLOWED_SIGNERS" \
+         verify-commit "$new" >/dev/null 2>&1; then
+      log "REFUSING ${new:0:12}: not signed by an allowed key"
+      status "refused unsigned ${new:0:12}, still on ${old:0:12}"
+      exit 0
+    fi
+  fi
+
+  log "updating ${old:0:12} -> ${new:0:12}"
+  git -C "$ROOT" reset --hard --quiet "$new"
+
+  if "$APPLY"; then
+    echo "$new" >"$STATE/version"
+    rm -f "$STATE/bad-commit"
+    status "updated to ${new:0:12}"
+    log "done"
+  else
+    log "apply FAILED; rolling back to ${old:0:12}"
+    echo "$new" >"$STATE/bad-commit"
+    git -C "$ROOT" reset --hard --quiet "$old"
+    "$APPLY" || log "rollback apply also failed (system keeps running the old files)"
+    status "FAILED ${new:0:12}; rolled back to ${old:0:12}"
+    exit 1
+  fi
+}
+
+main "$@"

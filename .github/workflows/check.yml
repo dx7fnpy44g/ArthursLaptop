@@ -1,0 +1,32 @@
+name: check
+# Every change to this repo ends up on a laptop nobody can easily reach, so test it first.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get install -y shellcheck >/dev/null
+          shellcheck -x install.sh os/apply.sh \
+            os/bin/kidos-{update,session,kiosk-login,getty,resume,status,migrate-network} \
+            tests/*.sh os/rootfs/etc/profile.d/kidos-kiosk.sh
+      - name: syntax
+        run: |
+          node --check apps/play.js
+          python3 -m py_compile os/bin/kidos-web
+          python3 -m json.tool os/rootfs/etc/chromium/policies/managed/kidos.json >/dev/null
+      - name: updater + network migration tests
+        run: |
+          bash tests/test-update.sh
+          bash tests/test-migrate.sh
+      - name: browser smoke test
+        run: |
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+          node tests/smoke.js

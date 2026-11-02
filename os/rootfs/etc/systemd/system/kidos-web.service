@@ -1,0 +1,16 @@
+[Unit]
+Description=Kid OS local app server
+After=local-fs.target
+
+[Service]
+User=kidos-web
+ExecStart=/usr/bin/python3 /opt/kidos/os/bin/kidos-web
+Restart=always
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run/kidos
+
+[Install]
+WantedBy=multi-user.target

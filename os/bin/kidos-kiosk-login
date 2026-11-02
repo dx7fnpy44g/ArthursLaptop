@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Called from /etc/profile.d when the kid user auto-logs in on tty1.
+RUN="${KIDOS_RUN:-/run/kidos}"
+fails=0
+while [ ! -e "$RUN/parent-mode" ]; do
+  start=$SECONDS
+  # No -s: Ctrl+Alt+Fn virtual-terminal switching stays disabled.
+  cage -d -- /usr/local/bin/kidos-session
+  if [ $((SECONDS - start)) -lt 15 ]; then fails=$((fails + 1)); else fails=0; fi
+  if [ "$fails" -ge 5 ]; then
+    # Graphics are broken: stop looping and hand the screen to a grown-up.
+    echo "kiosk failed repeatedly" >&2
+    mkdir -p "$RUN" 2>/dev/null; touch "$RUN/parent-mode" 2>/dev/null
+    break
+  fi
+  sleep 1
+done
+exit 0

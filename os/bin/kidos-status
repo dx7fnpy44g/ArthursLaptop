@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+STATE="${KIDOS_STATE:-/var/lib/kidos}"
+echo "Version:      $(cut -c1-12 "$STATE/version" 2>/dev/null || echo unknown)"
+[ -f "$STATE/status" ] && cat "$STATE/status"
+[ -f "$STATE/bad-commit" ] && echo "Skipping bad commit: $(cut -c1-12 "$STATE/bad-commit")"
+echo "Serial:       $(cat /sys/class/dmi/id/product_serial 2>/dev/null || echo '?')"
+systemctl list-timers kidos-update.timer --no-pager 2>/dev/null | head -n 3

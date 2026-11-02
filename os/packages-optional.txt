@@ -1,0 +1,9 @@
+# Best effort: a missing/renamed package here only logs a warning.
+# Firmware for the usual ideapad 110-15ISK Wi-Fi/graphics chips.
+firmware-realtek
+firmware-atheros
+firmware-iwlwifi
+firmware-misc-nonfree
+firmware-intel-graphics
+firmware-intel-misc
+firmware-intel-sound

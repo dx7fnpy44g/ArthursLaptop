@@ -1,0 +1,5 @@
+#!/bin/sh
+# Grown-up is done: go back to the kid's play screen.
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+rm -f /run/kidos/parent-mode
+systemctl restart getty@tty1.service
