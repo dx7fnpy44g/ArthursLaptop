@@ -81,3 +81,27 @@ git -C "$M/opt/kidos" rev-parse HEAD >/dev/null || fail "git checkout unusable"
 [ "$(cat "$M/var/lib/kidos/version")" = "$(git -C "$M/opt/kidos" rev-parse HEAD)" ] || fail "version file"
 [ ! -e "$M/media/kidos-offline" ] || fail "offline repo mount point left behind"
 echo "install test passed ($MODE)"
+
+# --- Boot the installed system and look at the screen. Only with KVM: under plain
+# emulation Chromium is far too slow for this to say anything.
+umount -R "$W/mnt"; qemu-nbd -d /dev/nbd0 >/dev/null; trap - EXIT
+if [ ! -w /dev/kvm ]; then echo "(no KVM: skipping the boot/screen check)"; exit 0; fi
+
+echo "== booting the installed system ($MODE)"
+qemu-system-x86_64 "${accel[@]}" "${fw[@]}" -m 3072 -smp 4 -vga virtio -display none -nic none \
+  -drive file="$DISK",if=none,id=hd,format=qcow2 -device ich9-ahci,id=ahci -device ide-hd,drive=hd,bus=ahci.0 \
+  -monitor unix:"$SOCK",server,nowait &
+BPID=$!
+trap 'kill "$BPID" 2>/dev/null || true' EXIT
+SHOT="python3 $(dirname "$0")/qemu-shot.py $SOCK"
+sleep 90
+before="$($SHOT colors "$SHOTS/$MODE-boot-1.png")"; echo "screen after boot:    $before"
+for k in a s d f j k; do $SHOT key "$k"; sleep 0.4; done
+sleep 3
+after="$($SHOT colors "$SHOTS/$MODE-boot-2.png")";  echo "screen after typing:  $after"
+kill "$BPID" 2>/dev/null || true; trap - EXIT
+
+colors="${after#colors=}"; colors="${colors%% *}"
+[ "$colors" -gt 200 ] || fail "screen is blank/flat (only $colors colours): the kiosk did not draw the app"
+[ "${before##*md5=}" != "${after##*md5=}" ] || fail "screen did not change when keys were pressed"
+echo "boot test passed ($MODE): the app is on screen and reacts to the keyboard"

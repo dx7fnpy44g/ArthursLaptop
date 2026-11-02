@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qemu-shot.py <monitor.sock> shot <out.png> | key <name>
+"""qemu-shot.py <monitor.sock> shot <out.png> | colors <out.png> | key <name>
 
 Talks to a QEMU monitor socket: take a screenshot as PNG (no dependencies), or send a key.
 Used by qemu-install-test.sh to see what an installer that is stuck is showing.
@@ -46,12 +46,29 @@ def ppm_to_png(ppm_path, png_path):
         f.write(png)
 
 
+def describe(ppm_path):
+    """Return 'colors=<distinct> top=<% of the most common colour> md5=<hash>'."""
+    import collections
+    import hashlib
+    with open(ppm_path, "rb") as f:
+        data = f.read()
+    pix = data.split(b"\n", 3)[3]
+    c = collections.Counter(zip(pix[0::3], pix[1::3], pix[2::3]))
+    top = c.most_common(1)[0][1] * 100 // (len(pix) // 3)
+    return "colors=%d top=%d md5=%s" % (len(c), top, hashlib.md5(pix).hexdigest()[:12])
+
+
 if __name__ == "__main__":
     sock, action, arg = sys.argv[1:4]
     if action == "shot":
         tmp = tempfile.mktemp(suffix=".ppm")
         monitor(sock, "screendump " + tmp)
         ppm_to_png(tmp, arg)
+    elif action == "colors":
+        tmp = tempfile.mktemp(suffix=".ppm")
+        monitor(sock, "screendump " + tmp)
+        ppm_to_png(tmp, arg)
+        print(describe(tmp))
     elif action == "key":
         monitor(sock, "sendkey " + arg)
     else:
