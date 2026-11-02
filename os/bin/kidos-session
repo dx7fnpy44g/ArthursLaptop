@@ -17,6 +17,9 @@ for _ in $(seq 1 30); do curl -fs "$URL" >/dev/null 2>&1 && break; sleep 1; done
   done
 ) &
 
+extra=()
+[ -n "${KIDOS_SOFTWARE:-}" ] && extra+=(--disable-gpu)   # software-rendering fallback
+
 while true; do
   profile="$(mktemp -d /tmp/kidos-chromium.XXXXXX)"
   chromium \
@@ -28,6 +31,7 @@ while true; do
     --overscroll-history-navigation=0 --password-store=basic \
     --autoplay-policy=no-user-gesture-required \
     --check-for-update-interval=31536000 \
+    "${extra[@]}" \
     "$URL"
   rm -rf "$profile"
   sleep 1   # Ctrl+W etc. close the browser; just start it again

@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # Called from /etc/profile.d when the kid user auto-logs in on tty1.
+# Tries the normal GPU-accelerated kiosk first; if the compositor keeps crashing
+# (odd graphics driver, VM without 3D...) falls back to software rendering; if even
+# that fails, hands the screen to a grown-up (login prompt) instead of looping forever.
 RUN="${KIDOS_RUN:-/run/kidos}"
 fails=0
 while [ ! -e "$RUN/parent-mode" ]; do
   start=$SECONDS
+  if [ "$fails" -ge 2 ] || [ -e /etc/kidos/software-render ]; then
+    export WLR_RENDERER=pixman WLR_RENDERER_ALLOW_SOFTWARE=1 KIDOS_SOFTWARE=1
+  fi
   # No -s: Ctrl+Alt+Fn virtual-terminal switching stays disabled.
   cage -d -- /usr/local/bin/kidos-session
   if [ $((SECONDS - start)) -lt 15 ]; then fails=$((fails + 1)); else fails=0; fi
-  if [ "$fails" -ge 5 ]; then
-    # Graphics are broken: stop looping and hand the screen to a grown-up.
+  if [ "$fails" -ge 6 ]; then
     echo "kiosk failed repeatedly" >&2
     mkdir -p "$RUN" 2>/dev/null; touch "$RUN/parent-mode" 2>/dev/null
     break
