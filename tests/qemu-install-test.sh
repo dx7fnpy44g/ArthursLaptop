@@ -13,22 +13,38 @@ TIMEOUT="${INSTALL_TIMEOUT:-5400}"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 qemu-img create -q -f qcow2 "$DISK" 12G
-accel=(-machine q35); [ -w /dev/kvm ] && accel=(-machine q35,accel=kvm -cpu host) || accel+=(-cpu max)
+accel=(-machine q35); [ -w /dev/kvm ] && accel=(-machine 'q35,accel=kvm' -cpu host) || accel+=(-cpu max)
 fw=()
 if [ "$MODE" = uefi ]; then
   cp /usr/share/OVMF/OVMF_VARS_4M.fd "$W/vars.fd"
-  fw=(-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd -drive if=pflash,format=raw,file="$W/vars.fd")
+  fw=(-drive 'if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd' -drive "if=pflash,format=raw,file=$W/vars.fd")
 fi
 
 echo "== installing ($MODE, ${accel[*]}), timeout ${TIMEOUT}s"
+SOCK="$W/mon.sock"; SHOTS="${SHOTS:-$W/shots}"; mkdir -p "$SHOTS"
+shot() { python3 "$(dirname "$0")/qemu-shot.py" "$SOCK" shot "$SHOTS/$MODE-$1.png" 2>/dev/null || true; }
 # The ISO is attached as a USB stick, like on real hardware. No NIC at all.
-timeout "$TIMEOUT" qemu-system-x86_64 "${accel[@]}" "${fw[@]}" -m 3072 -smp 4 \
+qemu-system-x86_64 "${accel[@]}" "${fw[@]}" -m 3072 -smp 4 \
   -display none -nic none -no-reboot \
   -drive file="$DISK",if=none,id=hd,format=qcow2 -device ich9-ahci,id=ahci -device ide-hd,drive=hd,bus=ahci.0 \
   -drive file="$ISO",if=none,id=usb,format=raw,readonly=on -device qemu-xhci -device usb-storage,drive=usb,bootindex=0 \
-  -monitor unix:"$W/mon.sock",server,nowait \
-  || fail "installer did not power off by itself (exit $?)"
-echo "== installer powered off by itself"
+  -monitor unix:"$SOCK",server,nowait &
+QPID=$!
+start=$SECONDS; n=0
+while kill -0 "$QPID" 2>/dev/null; do
+  if [ $((SECONDS - start)) -ge "$TIMEOUT" ]; then
+    echo "TIMEOUT after ${TIMEOUT}s: capturing what the installer is showing"
+    shot "timeout-screen"
+    python3 "$(dirname "$0")/qemu-shot.py" "$SOCK" key alt-f4 || true   # installer log console
+    sleep 2; shot "timeout-installer-log"
+    kill "$QPID" 2>/dev/null || true
+    fail "installer did not power off by itself within ${TIMEOUT}s (screenshots in $SHOTS)"
+  fi
+  sleep 20
+  n=$((n + 1)); if [ $((n % 3)) -eq 0 ]; then shot "t$(printf %04d $((SECONDS - start)))"; fi   # every minute
+done
+wait "$QPID" || true
+echo "== installer powered off by itself after $((SECONDS - start))s"
 
 echo "== inspecting installed disk"
 modprobe nbd max_part=8 2>/dev/null || true

@@ -28,9 +28,16 @@ jobs:
           KIDOS_WIFI_PSK: ${{ secrets.KIDOS_WIFI_PSK }}
         run: bash iso/build-iso.sh
       - name: test install (BIOS, no network)
-        run: sudo env INSTALL_TIMEOUT=3000 bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso bios
+        run: sudo env INSTALL_TIMEOUT=2400 SHOTS="$PWD/diag" WORK="$PWD/qemu-bios" bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso bios
       - name: test install (UEFI, no network)
-        run: sudo env INSTALL_TIMEOUT=3000 bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso uefi
+        run: sudo env INSTALL_TIMEOUT=2400 SHOTS="$PWD/diag" WORK="$PWD/qemu-uefi" bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso uefi
+      - name: screenshots of the VM screen (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-screenshots
+          path: diag/*.png
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: kidos-mp17jtkl-iso
