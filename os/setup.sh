@@ -31,9 +31,9 @@ else
   printf '127.0.1.1\t%s\n' "$HOST" >>/etc/hosts
 fi
 
+"$ROOT/os/apply.sh"   # installs git among other things
+
 # Backstop: never let a git "dubious ownership" check break updates.
 git config --system --get-all safe.directory 2>/dev/null | grep -qx "$ROOT" \
   || git config --system --add safe.directory "$ROOT"
-
-"$ROOT/os/apply.sh"
 git -C "$ROOT" rev-parse HEAD >/var/lib/kidos/version
