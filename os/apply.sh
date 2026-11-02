@@ -58,9 +58,15 @@ pkgs() { grep -hvE '^\s*(#|$)' "$@" 2>/dev/null || true; }
 
 # shellcheck disable=SC2046
 "${APT[@]}" install -y --no-install-recommends $(pkgs "$ROOT/os/packages.txt" ${overlay:+"$overlay/packages.txt"})
-for p in $(pkgs "$ROOT/os/packages-optional.txt"); do
-  "${APT[@]}" install -y --no-install-recommends "$p" || log "WARNING: optional package $p unavailable"
-done
+# One apt run (each package would otherwise rebuild the initramfs); if any is
+# unavailable fall back to one at a time so the rest still get installed.
+# shellcheck disable=SC2046
+"${APT[@]}" install -y --no-install-recommends $(pkgs "$ROOT/os/packages-optional.txt") || {
+  log "WARNING: some optional packages unavailable; retrying individually"
+  for p in $(pkgs "$ROOT/os/packages-optional.txt"); do
+    "${APT[@]}" install -y --no-install-recommends "$p" || log "WARNING: optional package $p unavailable"
+  done
+}
 rm -f /run/kidos-offline.list
 
 # --- users
