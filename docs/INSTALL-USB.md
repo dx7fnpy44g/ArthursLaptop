@@ -6,12 +6,15 @@ is installed it keeps itself updated from GitHub whenever it finds a network.
 
 ## Get the stick
 
-1. GitHub → **Actions** → **build-iso** → *Run workflow*. (Optionally set the grown-up's
-   first password; the default is `changeme` and **must be changed at first login**.)
-   It builds the ISO and test-installs it twice in a virtual machine with no network
-   (BIOS and UEFI) before publishing it. ~30–60 min.
-2. Download the `kidos-mp17jtkl-iso` artifact, unzip it, and write the `.iso` to a USB stick
-   (≥ 4 GB) with [balenaEtcher](https://etcher.balena.io/) or `sudo dd if=kidos-mp17jtkl.iso of=/dev/sdX bs=4M status=progress`.
+1. GitHub → **Actions** → **build-iso** → *Run workflow* (pick the branch with the latest code,
+   normally `main`). Optionally set the grown-up's first password; the default is `changeme` and
+   **must be changed at first login**. It takes about 10 minutes: it builds the ISO, then
+   installs it twice in virtual machines with **no network** (BIOS and UEFI), boots the result and
+   checks the play screen draws and reacts to a key press.
+2. When it is green, download the **`kidos-mp17jtkl-iso`** artifact (only published if both tests
+   passed; ignore `iso-under-test`), unzip it, and write the `.iso` to a USB stick (≥ 4 GB) with
+   [balenaEtcher](https://etcher.balena.io/) or `sudo dd if=kidos-mp17jtkl.iso of=/dev/sdX bs=4M status=progress`.
+   If a test fails, the `vm-screenshots-*` artifacts show what the virtual screen looked like.
 
 Or build it yourself on Debian/Ubuntu: `sudo apt install xorriso debootstrap apt-utils openssl git curl`
 then `bash iso/build-iso.sh` (output: `build/kidos-mp17jtkl.iso`; uses the **last commit**).
@@ -40,7 +43,11 @@ set); Linux makes you choose a new password at first login.
 
 ## What's tested, what isn't
 
-CI installs the ISO in QEMU (BIOS + UEFI, no NIC, empty disk), checks that it powers off by
-itself and that the installed system has the kiosk packages, users, services, git checkout
-and update timer. It cannot test real hardware: the Lenovo's graphics/audio/Wi-Fi, or
-whether the kiosk actually draws on its screen. Test on the laptop and tell me what happens.
+Every run of the workflow installs the ISO in QEMU/KVM (BIOS and UEFI, no network card, empty
+disk) and checks: it installs unattended and powers itself off; the installed system has the
+kiosk packages, users, services, git checkout and update timer; then it boots that system and
+checks the play screen is drawn and that a key press draws a shape.
+
+A virtual machine is not your Lenovo. Not covered: its real graphics (the VM uses a software
+renderer, so the GPU path is untested), sound, Wi-Fi hardware/firmware, whether the BIOS boots the
+stick, and how it feels to a toddler. Try it on the laptop and tell me what you see.
