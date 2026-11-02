@@ -25,7 +25,8 @@ log "machine overlay: ${overlay:-none}"
 
 # --- apt sources
 # A cdrom/offline install leaves no usable sources; make sure online updates work later.
-if ! grep -rqsE '^(deb |Types:)' /etc/apt/sources.list /etc/apt/sources.list.d/; then
+# (cdrom lines don't count: the installer disables them right after we run.)
+if ! grep -rqsE '^(deb |URIs:).*https?://' /etc/apt/sources.list /etc/apt/sources.list.d/; then
   cat >/etc/apt/sources.list.d/debian.sources <<'EOF'
 Types: deb
 URIs: http://deb.debian.org/debian
