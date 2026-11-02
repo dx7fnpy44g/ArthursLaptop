@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qemu-shot.py <monitor.sock> shot <out.png> | colors <out.png> | key <name>
+"""qemu-shot.py <monitor.sock> shot <out.png> | colors <out.png> | pixel <out.png> | key <name>
 
 Talks to a QEMU monitor socket: take a screenshot as PNG (no dependencies), or send a key.
 Used by qemu-install-test.sh to see what an installer that is stuck is showing.
@@ -69,6 +69,16 @@ if __name__ == "__main__":
         monitor(sock, "screendump " + tmp)
         ppm_to_png(tmp, arg)
         print(describe(tmp))
+    elif action == "pixel":
+        # background colour at the top-left corner: the installer paints errors on RED
+        tmp = tempfile.mktemp(suffix=".ppm")
+        monitor(sock, "screendump " + tmp)
+        ppm_to_png(tmp, arg)
+        with open(tmp, "rb") as f:
+            parts = f.read().split(b"\n", 3)
+        w = int(parts[1].split()[0])
+        off = (2 * w + 2) * 3
+        print("rgb=%d,%d,%d" % tuple(parts[3][off:off + 3]))
     elif action == "key":
         monitor(sock, "sendkey " + arg)
     else:

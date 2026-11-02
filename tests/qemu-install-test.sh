@@ -40,8 +40,17 @@ while kill -0 "$QPID" 2>/dev/null; do
     kill "$QPID" 2>/dev/null || true
     fail "installer did not power off by itself within ${TIMEOUT}s (screenshots in $SHOTS)"
   fi
-  sleep 20
-  n=$((n + 1)); if [ $((n % 3)) -eq 0 ]; then shot "t$(printf %04d $((SECONDS - start)))"; fi   # every minute
+  sleep 8
+  # The Debian installer paints every error dialog on a RED background (normal screens are blue).
+  px="$(python3 "$(dirname "$0")/qemu-shot.py" "$SOCK" pixel "$SHOTS/$MODE-latest.png" 2>/dev/null || true)"
+  if [ "$px" = "rgb=170,0,0" ]; then
+    echo "INSTALLER ERROR SCREEN after $((SECONDS - start))s"
+    python3 "$(dirname "$0")/qemu-shot.py" "$SOCK" key alt-f4 || true   # installer log console
+    sleep 2; shot "error-installer-log"
+    kill "$QPID" 2>/dev/null || true
+    fail "the installer stopped on an error dialog (screenshots in $SHOTS)"
+  fi
+  n=$((n + 1)); if [ $((n % 6)) -eq 0 ]; then shot "t$(printf %04d $((SECONDS - start)))"; fi   # about once a minute
 done
 wait "$QPID" || true
 echo "== installer powered off by itself after $((SECONDS - start))s"

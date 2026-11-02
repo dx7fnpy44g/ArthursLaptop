@@ -1,5 +1,6 @@
 name: build-iso
-# Builds the offline USB installer and test-installs it in a VM with no network.
+# Builds the offline USB installer, then test-installs it in VMs with no network
+# (BIOS and UEFI in parallel). Only an ISO that passes is published as the final artifact.
 on:
   workflow_dispatch:
     inputs:
@@ -8,39 +9,71 @@ on:
         default: "changeme"
   push:
     branches: [main]
-    paths: ["iso/**", "os/**", "apps/**", "machines/**", ".github/workflows/build-iso.yml"]
+    paths: ["iso/**", "os/**", "apps/**", "machines/**", "tests/qemu-*", ".github/workflows/build-iso.yml"]
 
 jobs:
-  iso:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xorriso debootstrap apt-utils qemu-system-x86 qemu-utils ovmf
-          sudo chmod 666 /dev/kvm || true
+          sudo apt-get install -y -qq xorriso debootstrap apt-utils
       - name: build ISO
         env:
           KIDOS_PARENT_PASSWORD: ${{ inputs.parent_password || 'changeme' }}
           KIDOS_WIFI_SSID: ${{ secrets.KIDOS_WIFI_SSID }}
           KIDOS_WIFI_PSK: ${{ secrets.KIDOS_WIFI_PSK }}
         run: bash iso/build-iso.sh
-      - name: test install (BIOS, no network)
-        run: sudo env INSTALL_TIMEOUT=1500 SHOTS="$PWD/diag" WORK="$PWD/qemu-bios" bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso bios
-      - name: test install (UEFI, no network)
-        run: sudo env INSTALL_TIMEOUT=1500 SHOTS="$PWD/diag" WORK="$PWD/qemu-uefi" bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso uefi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iso-under-test
+          path: build/kidos-mp17jtkl.iso
+          retention-days: 2
+          compression-level: 0
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [bios, uefi]
+    steps:
+      - uses: actions/checkout@v4
+      - name: tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf
+          sudo chmod 666 /dev/kvm || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: iso-under-test
+          path: build
+      - name: install in a VM with no network, then boot it and look at the screen
+        run: sudo env INSTALL_TIMEOUT=900 SHOTS="$PWD/diag" WORK="$PWD/qemu" bash tests/qemu-install-test.sh build/kidos-mp17jtkl.iso ${{ matrix.mode }}
       - name: screenshots of the VM screen (for debugging)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vm-screenshots
+          name: vm-screenshots-${{ matrix.mode }}
           path: diag/*.png
           if-no-files-found: ignore
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: iso-under-test
+          path: iso
       - uses: actions/upload-artifact@v4
         with:
           name: kidos-mp17jtkl-iso
-          path: build/kidos-mp17jtkl.iso
+          path: iso/kidos-mp17jtkl.iso
           retention-days: 14
           compression-level: 0
